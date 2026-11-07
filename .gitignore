@@ -1,0 +1,57 @@
+# Build outputs and temporary workspaces
+out/
+work/
+.build-vol/
+.cache/
+*.sparseimage
+*.dmg
+*.img
+*.img.gz
+*.img.xz
+*.img.zst
+*.tar.gz
+*.tar.zst
+*.7z
+*.zip
+
+# Bootloader & kernel binary artifacts (never commit binaries)
+bl31.bin
+bl33.bin
+u-boot.bin
+boot.scr
+nx-plat.dtimg
+uImage
+Image
+initramfs
+initramfs.img
+*.dtb
+*.dtbo
+
+# Strictly forbid Nintendo / console proprietary dumps, keys, calibration, or firmware
+*.keys
+prod.keys
+title.keys
+dev.keys
+*prodinfo*
+PRODINFO*
+BOOT0*
+BOOT1*
+rawnand*
+BCPKG2*
+package1*
+package2*
+warmboot*
+tsec_fw*
+fuse*
+switch.cal
+*.nca
+*.nsp
+*.xci
+*.kip
+*.ini.bak
+
+# macOS / editor cruft
+.DS_Store
+._*
+*.swp
+*~

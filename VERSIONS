@@ -1,0 +1,78 @@
+# ==============================================================================
+# VERSIONS — Single Source of Truth for Chimera Linux on Nintendo Switch (Erista)
+# ==============================================================================
+# All build, packaging, verification, and upstream-tracking scripts source this
+# file directly. Never hardcode commits, URLs, or checksums in scripts.
+# Updated automatically by .github/workflows/upstream-tracker.yml (Phase 8).
+# ==============================================================================
+
+# --- Project & Target Metadata ------------------------------------------------
+PROJECT_VERSION="0.1.0-erista-alpha"
+TARGET_SOC="tegra210"
+TARGET_BOARD="erista"
+TARGET_CODENAME="icosa"
+TARGET_SKU_ID="0x4F44494E"
+
+# --- Upstream Kernel (l4t-community / linux-nx) -------------------------------
+LINUX_NX_GIT_URL="https://gitlab.com/l4t-community/kernel/linux-nx.git"
+LINUX_NX_BRANCH="nx/v6.18-oled"
+LINUX_NX_COMMIT="80f1e68e163ac77d688f0244b03cf05f791b4781"
+LINUX_KERNEL_SERIES="6.18"
+TARGET_DTB_BASENAME="tegra210-odin.dtb"
+TARGET_DTB_ALIAS="tegra210-icosa.dtb"
+
+# --- Enigma Patch Series (Garyu-tt / x1SteamOS) -------------------------------
+X1STEAMOS_GIT_URL="https://github.com/Garyu-tt/x1SteamOS.git"
+X1STEAMOS_BRANCH="main"
+X1STEAMOS_COMMIT="743408bbcbd26f091ad0772fd862d2079e2efa3e"
+ENIGMA_REVISION="r20"
+ENIGMA_PATCH_1_FILE="patches/enigma-r20-base.patch"
+ENIGMA_PATCH_1_SHA256="a5002215490e81d653697bbd43d256f75f1ad0f0a26f6ff9ba2364d9f010485c"
+ENIGMA_PATCH_2_FILE="patches/enigma-r20-ltssm.patch"
+ENIGMA_PATCH_2_SHA256="4e60b61b4fb808f524035b6f41863c155c4accfd8daf4ef5d661786f0270b2b2"
+ENIGMA_PATCH_R21_FILE="patches/experimental/r21-pad-refclk.patch"
+ENIGMA_PATCH_R21_SHA256="0fa0717a9e1a250b1773967f24409669bc6f3fb7d49ac7c1465d2ae46476480b"
+
+# --- Chimera Linux aarch64 Rootfs ---------------------------------------------
+CHIMERA_LIVE_BASE_URL="https://repo.chimera-linux.org/live"
+CHIMERA_IMAGE_DATE="20261103"
+CHIMERA_ROOTFS_FLAVOR="full"
+CHIMERA_ROOTFS_FILENAME="chimera-linux-aarch64-ROOTFS-20261103-full.tar.gz"
+CHIMERA_ROOTFS_URL="https://repo.chimera-linux.org/live/20261103/chimera-linux-aarch64-ROOTFS-20261103-full.tar.gz"
+CHIMERA_ROOTFS_SHA256="a15cbcae55626748dfdcb9184b5e03d14f65a042435320dde70b7d7c890ba098"
+CHIMERA_BOOTSTRAP_FILENAME="chimera-linux-aarch64-ROOTFS-20261103-bootstrap.tar.gz"
+CHIMERA_BOOTSTRAP_URL="https://repo.chimera-linux.org/live/20261103/chimera-linux-aarch64-ROOTFS-20261103-bootstrap.tar.gz"
+CHIMERA_BOOTSTRAP_SHA256="2a8fc92d4cab69469ee759e662801ac783f9f26ed8ef6e52578ab2a9d31901a8"
+
+# --- Switchroot / L4T Boot Chain (Official L4S Pipeline & U-Boot) -------------
+L4S_PIPELINE_GIT_URL="https://gitlab.com/l4t-community/gnu-linux/l4s-pipeline.git"
+L4S_PIPELINE_COMMIT="61cdea92af702d737c2a215e256c9d393d94a7c9"
+L4S_BOOT_ASSETS_URL="https://gitlab.com/l4t-community/gnu-linux/l4s-pipeline/-/archive/61cdea92af702d737c2a215e256c9d393d94a7c9/l4s-pipeline-61cdea92af702d737c2a215e256c9d393d94a7c9.tar.gz?path=scripts/bootloader/assets"
+L4S_BOOT_ASSETS_SHA256="731182e9cc88bd5de49aa16e9b26f6a5a0fa9dafb0d22600a8503208dfc9e08e"
+L4S_BL31_SHA256="27685b5bfc5f465b561c3bef63a919eb3168823ea417f9ecdabe46174fc8e797"
+L4S_BOOT_TXT_SHA256="2c26eff7ac8971a6b52692b3f74b6994e96f11c80e32e0eb8e9583ed45e8b186"
+L4S_INI_TEMPLATE_SHA256="75dfd6d08a2d4f4cda7bafec0ebca2af0103149963fbfc9ea3fe91521018baa3"
+L4S_ICON_HUE_SHA256="ab24f86f26182e3a4b533ca3f44946827ab8ace6d70963a73061c492174cb536"
+L4S_LOGO_BMP_SHA256="4a3ac823c0dbd23f9e5d0ba52164bbd04b1ddd4680ef1f6d8012145cb3541afc"
+L4S_UBOOT_GIT_URL="https://gitlab.com/l4t-community/bootstack/u-boot.git"
+L4S_UBOOT_BRANCH="linux-hekatf"
+L4S_UBOOT_COMMIT="12d7116345200d8b8bcdb42690256286e73a6e37"
+L4S_BL33_URL="https://gitlab.com/api/v4/projects/58434590/jobs/artifacts/master/raw/bl33.bin?job=uboot"
+L4S_BL33_SHA256="087907c9c04aa6dffe6e2171b9e48b76b026baec623d7e9ba2eb9d7842bc795b"
+
+# --- Boot Packaging Parameters ------------------------------------------------
+SWITCHROOT_DISTRO_DIR="chimera"
+HEKATE_INI_NAME="CHIMERA.ini"
+HEKATE_FS_LABEL="SWR-CHI"
+UIMAGE_LOAD_ADDR="0x80200000"
+UIMAGE_ENTRY_ADDR="0x80200000"
+
+# --- Toolchain & Container Pins -----------------------------------------------
+BUILD_CONTAINER_IMAGE="debian:trixie-slim"
+HOMEBREW_LLVM_MIN_MAJOR="18"
+HOMEBREW_LLVM_PIN="23.1.5"
+HOMEBREW_DTC_PIN="1.8.1"
+HOMEBREW_UBOOT_TOOLS_PIN="2026.10"
+DOCKER_BUILD_VOLUME="chimera-switch-build"
+APFS_VOLUME_NAME="ChimeraBuild"
+APFS_SPARSE_SIZE="25g"
