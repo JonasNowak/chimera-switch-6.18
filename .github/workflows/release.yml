@@ -1,0 +1,119 @@
+name: Release — Build & Attach Erista SD Image
+
+on:
+  push:
+    tags:
+      - "v*-erista*"
+    branches:
+      - main
+    paths:
+      - "VERSIONS"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Optional explicit release tag (e.g. v0.1.0-erista-alpha)"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build Full Erista SD Image & Publish GitHub Release
+    runs-on: macos-15
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine Release Tag
+        id: tag
+        run: |
+          source ./VERSIONS
+          if [[ -n "${{ inputs.release_tag }}" ]]; then
+            TAG="${{ inputs.release_tag }}"
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="v${PROJECT_VERSION}-${CHIMERA_IMAGE_DATE}-erista"
+          fi
+          echo "release_tag=${TAG}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run Full Build Pipeline (Phases 0–5)
+        run: |
+          chmod +x scripts/*.sh
+          ./scripts/setup-macos.sh
+          ./scripts/verify-env.sh
+          ./scripts/build-kernel.sh
+          ./scripts/build-rootfs.sh
+          ./scripts/build-initramfs.sh
+          ./scripts/make-boot-files.sh --force
+          ./scripts/make-sd.sh
+
+      - name: Compress SD Image & Package Boot Files for Release
+        run: |
+          zstd -T0 -10 -k out/chimera-switch-erista.img -o out/chimera-switch-erista.img.zst
+          tar -C out/sd-boot -czf out/chimera-switch-erista-sd-boot.tar.gz bootloader switchroot MANIFEST.sha256
+          (
+            cd out
+            sha256sum \
+              chimera-switch-erista.img \
+              chimera-switch-erista.img.zst \
+              chimera-switch-erista-sd-boot.tar.gz \
+              rootfs.tar.zst \
+              initramfs.img > SHA256SUMS-RELEASE.txt
+          )
+
+      - name: Create Tag & Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.tag.outputs.release_tag }}"
+          if ! git rev-parse "${TAG}" >/dev/null 2>&1; then
+            git config user.name "chimera-switch-bot[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "${TAG}" -m "Release ${TAG}"
+            git push origin "${TAG}" || true
+          fi
+
+          NOTES="$(cat <<EOF
+          ## Chimera Linux (aarch64) for Nintendo Switch v1 "Erista" (T210) — \`${TAG}\`
+
+          > **Hardware Verification Notice:** This build targets the Nintendo Switch v1 Erista (\`icosa\` / \`tegra210-odin.dtb\`) using the Linux 6.18 Enigma R20 kernel (\`linux-nx\`). Erista hardware boot is **UNTESTED** pending physical console bring-up (see \`docs/TEST-REPORT.md\`).
+
+          ### Kernel & Rootfs Pins
+          \`\`\`text
+          $(cat out/kernel/BUILD-INFO.txt)
+          \`\`\`
+
+          ### Release Checksums (\`SHA256SUMS-RELEASE.txt\`)
+          \`\`\`text
+          $(cat out/SHA256SUMS-RELEASE.txt)
+          \`\`\`
+          EOF
+          )"
+
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release upload "${TAG}" \
+              out/chimera-switch-erista.img.zst \
+              out/chimera-switch-erista-sd-boot.tar.gz \
+              out/rootfs.tar.zst \
+              out/SHA256SUMS-RELEASE.txt \
+              out/kernel/BUILD-INFO.txt \
+              --clobber
+          else
+            gh release create "${TAG}" \
+              out/chimera-switch-erista.img.zst \
+              out/chimera-switch-erista-sd-boot.tar.gz \
+              out/rootfs.tar.zst \
+              out/SHA256SUMS-RELEASE.txt \
+              out/kernel/BUILD-INFO.txt \
+              --title "Chimera Linux 6.18 Switch Erista (${TAG})" \
+              --notes "${NOTES}" \
+              --prerelease
+          fi

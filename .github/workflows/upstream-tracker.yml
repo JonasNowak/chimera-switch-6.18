@@ -1,0 +1,263 @@
+name: Upstream Tracker & Auto-Rebuild Bot
+
+on:
+  schedule:
+    # Run daily at 04:15 UTC
+    - cron: "15 4 * * *"
+  workflow_dispatch:
+    inputs:
+      simulate_component:
+        description: "Optional: Simulate upstream movement (chimera|kernel|enigma|toolchain)"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: read
+
+concurrency:
+  group: upstream-tracker
+  cancel-in-progress: false
+
+jobs:
+  track-and-rebuild:
+    name: Probe Upstream, Rebase Patches & Rebuild Full Pipeline (macOS arm64)
+    runs-on: macos-15
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git Bot Identity
+        run: |
+          git config user.name "chimera-switch-bot[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Run Phase 8 Read-Only Upstream Probe
+        id: probe
+        run: |
+          chmod +x scripts/*.sh
+          SIM_ARGS=()
+          if [[ -n "${{ inputs.simulate_component }}" ]]; then
+            SIM_ARGS=(--simulate "${{ inputs.simulate_component }}")
+          fi
+          ./scripts/check-upstream.sh "${SIM_ARGS[@]}" --output upstream-status.json
+          cat upstream-status.json
+
+          HAS_UPDATES="$(python3 -c 'import json; print(str(json.load(open("upstream-status.json"))["has_updates"]).lower())')"
+          AUTO_MERGE="$(python3 -c 'import json; print(str(json.load(open("upstream-status.json"))["auto_merge_eligible"]).lower())')"
+          NEEDS_REVIEW="$(python3 -c 'import json; print(str(json.load(open("upstream-status.json"))["requires_manual_review"]).lower())')"
+
+          echo "has_updates=${HAS_UPDATES}" >> "${GITHUB_OUTPUT}"
+          echo "auto_merge=${AUTO_MERGE}" >> "${GITHUB_OUTPUT}"
+          echo "needs_review=${NEEDS_REVIEW}" >> "${GITHUB_OUTPUT}"
+
+      - name: Publish Upstream Status Summary & Artifact
+        if: always()
+        run: |
+          echo "### Upstream Tracker Status Report" >> "${GITHUB_STEP_SUMMARY}"
+          echo '```json' >> "${GITHUB_STEP_SUMMARY}"
+          cat upstream-status.json >> "${GITHUB_STEP_SUMMARY}"
+          echo '```' >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload upstream-status.json artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: upstream-status
+          path: upstream-status.json
+          retention-days: 30
+
+      - name: Prepare bot/upstream-sync branch and update VERSIONS
+        if: steps.probe.outputs.has_updates == 'true'
+        run: |
+          git checkout -B bot/upstream-sync
+          cp VERSIONS VERSIONS.old
+          ./scripts/check-upstream.sh --write-versions VERSIONS
+          git diff --no-index VERSIONS.old VERSIONS > versions.diff || true
+          rm -f VERSIONS.old
+          echo "=== VERSIONS Diff ==="
+          cat versions.diff
+
+      - name: Set up macOS Build Environment (Phase 0)
+        if: steps.probe.outputs.has_updates == 'true'
+        run: |
+          ./scripts/setup-macos.sh
+          ./scripts/verify-env.sh
+
+      - name: Attempt Patch Application & 3-Way Rebase (Phase 1 Kernel Tree)
+        id: rebase
+        if: steps.probe.outputs.has_updates == 'true'
+        continue-on-error: true
+        run: |
+          source ./VERSIONS
+          set +e
+          ./scripts/fetch-enigma.sh "${ENIGMA_REVISION}" > fetch-enigma.log 2>&1
+          FETCH_RC=$?
+          set -e
+          cat fetch-enigma.log
+
+          if [[ ${FETCH_RC} -ne 0 ]]; then
+            echo "[WARN] Direct patch application failed; attempting 3-way rebase (git apply -3)..."
+            TREE_DIR="/Volumes/${APFS_VOLUME_NAME}/linux-enigma"
+            rm -rf "${TREE_DIR}"
+            git clone --filter=blob:none --no-checkout "${LINUX_NX_GIT_URL}" "${TREE_DIR}"
+            git -C "${TREE_DIR}" fetch --depth 50 origin "${LINUX_NX_COMMIT}"
+            git -C "${TREE_DIR}" checkout --detach "${LINUX_NX_COMMIT}"
+
+            if git -C "${TREE_DIR}" apply -3 "${GITHUB_WORKSPACE}/${ENIGMA_PATCH_1_FILE}" > rebase-p1.log 2>&1; then
+              git -C "${TREE_DIR}" diff > "${GITHUB_WORKSPACE}/${ENIGMA_PATCH_1_FILE}"
+              git -C "${TREE_DIR}" add -A && git -C "${TREE_DIR}" commit -m "Enigma base rebased"
+            else
+              cat rebase-p1.log >> fetch-enigma.log
+              git -C "${TREE_DIR}" diff >> fetch-enigma.log || true
+              exit 1
+            fi
+
+            if git -C "${TREE_DIR}" apply -3 "${GITHUB_WORKSPACE}/${ENIGMA_PATCH_2_FILE}" > rebase-p2.log 2>&1; then
+              git -C "${TREE_DIR}" diff HEAD > "${GITHUB_WORKSPACE}/${ENIGMA_PATCH_2_FILE}"
+              git -C "${TREE_DIR}" add -A && git -C "${TREE_DIR}" commit -m "Enigma ltssm rebased"
+            else
+              cat rebase-p2.log >> fetch-enigma.log
+              git -C "${TREE_DIR}" diff >> fetch-enigma.log || true
+              exit 1
+            fi
+
+            # Update rebased patch SHA256 pins in VERSIONS
+            NEW_P1_SHA="$(sha256sum "${ENIGMA_PATCH_1_FILE}" | awk '{print $1}')"
+            NEW_P2_SHA="$(sha256sum "${ENIGMA_PATCH_2_FILE}" | awk '{print $1}')"
+            gsed -i "s|^ENIGMA_PATCH_1_SHA256=.*|ENIGMA_PATCH_1_SHA256=\"${NEW_P1_SHA}\"|" VERSIONS
+            gsed -i "s|^ENIGMA_PATCH_2_SHA256=.*|ENIGMA_PATCH_2_SHA256=\"${NEW_P2_SHA}\"|" VERSIONS
+          fi
+
+      - name: Open GitHub Issue on Patch Rebase Conflict
+        if: steps.probe.outputs.has_updates == 'true' && steps.rebase.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE_BODY="$(cat <<EOF
+          ## Upstream Patch Rebase Conflict Detected
+
+          The automated upstream tracker detected movement in \`linux-nx\` / \`x1SteamOS\`, and 3-way patch rebase (\`git apply -3\`) encountered conflicts. Per project ground rules, \`VERSIONS\` on \`main\` was **not** modified.
+
+          ### \`VERSIONS\` Diff Attempted
+          \`\`\`diff
+          $(cat versions.diff)
+          \`\`\`
+
+          ### Rebase & Conflict Log
+          \`\`\`text
+          $(tail -n 120 fetch-enigma.log)
+          \`\`\`
+          EOF
+          )"
+          gh issue create \
+            --title "[Upstream Tracker] Patch rebase conflict against new linux-nx commit" \
+            --body "${ISSUE_BODY}" || true
+          exit 1
+
+      - name: Run Full Rebuild Pipeline (Kernel -> Rootfs -> Initramfs -> Boot -> SD Image)
+        id: pipeline
+        if: steps.probe.outputs.has_updates == 'true' && steps.rebase.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          ./scripts/build-kernel.sh 2>&1 | tee pipeline-build.log
+          ./scripts/build-rootfs.sh 2>&1 | tee -a pipeline-build.log
+          ./scripts/build-initramfs.sh 2>&1 | tee -a pipeline-build.log
+          ./scripts/make-boot-files.sh --force 2>&1 | tee -a pipeline-build.log
+          ./scripts/make-sd.sh 2>&1 | tee -a pipeline-build.log
+
+      - name: Open GitHub Issue on Pipeline Build Failure
+        if: steps.probe.outputs.has_updates == 'true' && steps.rebase.outcome == 'success' && steps.pipeline.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE_BODY="$(cat <<EOF
+          ## Automated Upstream Rebuild Pipeline Failure
+
+          An upstream update passed patch application but failed during the full pipeline build.
+
+          ### \`VERSIONS\` Diff
+          \`\`\`diff
+          $(cat versions.diff)
+          \`\`\`
+
+          ### Build Log Tail
+          \`\`\`text
+          $(tail -n 120 pipeline-build.log)
+          \`\`\`
+          EOF
+          )"
+          gh issue create \
+            --title "[Upstream Tracker] Pipeline build failure on upstream sync" \
+            --body "${ISSUE_BODY}" || true
+          exit 1
+
+      - name: Commit Updated VERSIONS (and Rebased Patches) & Open Pull Request
+        if: steps.probe.outputs.has_updates == 'true' && steps.pipeline.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check if any config, DTB, or boot chain file changed to refine merge policy
+          NEEDS_REVIEW="${{ steps.probe.outputs.needs_review }}"
+          if [[ -n "$(git status --porcelain configs/ scripts/make-boot-files.sh)" ]]; then
+            NEEDS_REVIEW="true"
+          fi
+
+          git add VERSIONS patches/
+          if git diff --cached --quiet; then
+            echo "[INFO] No tracked files changed after simulation; skipping PR creation."
+            exit 0
+          fi
+
+          git commit -m "chore(versions): automated upstream sync ($(date -u +%Y-%m-%d))"
+          git push --force origin bot/upstream-sync
+
+          PR_BODY="$(cat <<EOF
+          ## Automated Upstream Sync
+
+          This pull request was generated automatically by \`.github/workflows/upstream-tracker.yml\` after verifying a full end-to-end build (Phase 1 Kernel → Phase 2 Rootfs → Phase 3 Initramfs → Phase 4 Boot Packaging → Phase 5 SD Image).
+
+          ### Upstream Probe Report
+          \`\`\`json
+          $(cat upstream-status.json)
+          \`\`\`
+
+          ### \`VERSIONS\` Diff
+          \`\`\`diff
+          $(cat versions.diff)
+          \`\`\`
+
+          ### Kernel Build & Artifact Summary
+          \`\`\`text
+          $(cat out/kernel/BUILD-INFO.txt)
+          $(cat out/kernel/SHA256SUMS)
+          $(cat out/chimera-switch-erista.img.sha256)
+          \`\`\`
+          EOF
+          )"
+
+          EXISTING_PR="$(gh pr list --head bot/upstream-sync --json number --jq '.[0].number' || true)"
+          if [[ -n "${EXISTING_PR}" ]]; then
+            gh pr edit "${EXISTING_PR}" --body "${PR_BODY}"
+            PR_NUM="${EXISTING_PR}"
+          else
+            PR_URL="$(gh pr create --base main --head bot/upstream-sync --title "chore(versions): automated upstream sync ($(date -u +%Y-%m-%d))" --body "${PR_BODY}")"
+            PR_NUM="$(basename "${PR_URL}")"
+          fi
+
+          if [[ "${NEEDS_REVIEW}" == "true" ]]; then
+            gh label create "needs-review" --color "d93f0b" --force || true
+            gh pr edit "${PR_NUM}" --add-label "needs-review"
+          else
+            gh label create "automerge" --color "0e8a16" --force || true
+            gh pr edit "${PR_NUM}" --add-label "automerge"
+            gh pr merge "${PR_NUM}" --auto --squash || true
+          fi

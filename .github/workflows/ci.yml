@@ -1,0 +1,79 @@
+name: CI — macOS Environment & Kernel Build
+
+on:
+  push:
+    branches:
+      - main
+      - "bot/**"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos-kernel-ci:
+    name: Verify Environment & Build Enigma R20 Erista Kernel (macOS arm64)
+    runs-on: macos-15
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Cache Homebrew packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/Homebrew
+          key: homebrew-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('VERSIONS', 'scripts/setup-macos.sh') }}
+          restore-keys: |
+            homebrew-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Run Phase 0 macOS environment setup
+        run: |
+          chmod +x scripts/*.sh
+          ./scripts/setup-macos.sh
+
+      - name: Run Phase 0 dependency verification matrix
+        run: |
+          ./scripts/verify-env.sh
+
+      - name: Cache linux-nx bare git clone
+        uses: actions/cache@v4
+        with:
+          path: |
+            work/linux-nx.git
+            work/x1SteamOS
+          key: kernel-sources-${{ hashFiles('VERSIONS') }}
+          restore-keys: |
+            kernel-sources-
+
+      - name: Run Phase 1 Enigma R20 kernel build for Erista (T210 / icosa)
+        run: |
+          ./scripts/build-kernel.sh
+
+      - name: Verify Phase 8 upstream probe (read-only JSON check)
+        run: |
+          ./scripts/check-upstream.sh --output out/upstream-status.json
+          python3 -m json.tool out/upstream-status.json >/dev/null
+
+      - name: Upload Kernel & DTB Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-erista-${{ github.sha }}
+          path: |
+            out/kernel/Image
+            out/kernel/tegra210-odin.dtb
+            out/kernel/tegra210-icosa.dtb
+            out/kernel/nx-plat.dtimg
+            out/kernel/modules.tar.gz
+            out/kernel/kernel.config
+            out/kernel/kernel.release
+            out/kernel/BUILD-INFO.txt
+            out/kernel/SHA256SUMS
+            out/upstream-status.json
+          retention-days: 14
