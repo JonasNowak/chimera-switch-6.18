@@ -117,13 +117,29 @@ ok "Case-sensitive APFS volume mounted at ${MOUNT_POINT}"
 if [[ "${SKIP_DOCKER}" != "1" ]]; then
   if ! docker info >/dev/null 2>&1; then
     if command -v colima >/dev/null 2>&1; then
-      log "Starting Colima aarch64 VM (Virtualization.framework)..."
-      colima start --cpus 6 --memory 8 --disk 60
+      log "Attempting to start Colima aarch64 VM..."
+      if ! colima start --cpus 6 --memory 8 --disk 60; then
+        if [[ "${CI:-}" == "true" || "${GITHUB_ACTIONS:-}" == "true" ]]; then
+          warn "Colima / nested virtualization unavailable on CI runner; falling back to --skip-docker."
+          SKIP_DOCKER="1"
+        else
+          err "Failed to start Colima VM."
+          exit 1
+        fi
+      fi
     else
-      err "Docker daemon is not running and Colima is not installed. Start Docker Desktop or install colima."
-      exit 1
+      if [[ "${CI:-}" == "true" || "${GITHUB_ACTIONS:-}" == "true" ]]; then
+        warn "Docker daemon not available on CI runner; falling back to --skip-docker."
+        SKIP_DOCKER="1"
+      else
+        err "Docker daemon is not running and Colima is not installed. Start Docker Desktop or install colima."
+        exit 1
+      fi
     fi
   fi
+fi
+
+if [[ "${SKIP_DOCKER}" != "1" ]]; then
   ok "Docker daemon active ($(docker info --format '{{.OSType}}/{{.Architecture}}'))"
 
   if ! docker volume inspect "${DOCKER_BUILD_VOLUME}" >/dev/null 2>&1; then

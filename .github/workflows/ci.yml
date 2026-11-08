@@ -36,11 +36,11 @@ jobs:
       - name: Run Phase 0 macOS environment setup
         run: |
           chmod +x scripts/*.sh
-          ./scripts/setup-macos.sh
+          ./scripts/setup-macos.sh --skip-docker
 
       - name: Run Phase 0 dependency verification matrix
         run: |
-          ./scripts/verify-env.sh
+          ./scripts/verify-env.sh --skip-docker
 
       - name: Cache linux-nx bare git clone
         uses: actions/cache@v4
