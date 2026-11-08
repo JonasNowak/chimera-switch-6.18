@@ -31,7 +31,7 @@ export PATH="/opt/homebrew/opt/coreutils/libexec/gnubin:/opt/homebrew/opt/gnu-ta
 TARGET_DEVICE=""
 OUT_IMG="${REPO_ROOT}/out/chimera-switch-erista.img"
 BOOT_MB=256
-ROOT_MB=1536
+ROOT_MB=2048
 
 while [[ $# -gt 0 ]]; do
   case "$1" in

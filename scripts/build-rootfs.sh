@@ -82,6 +82,12 @@ docker run --rm --privileged \
   -e KERNEL_RELEASE="${KERNEL_RELEASE}" \
   -e HEKATE_FS_LABEL="${HEKATE_FS_LABEL}" \
   -e PROJECT_VERSION="${PROJECT_VERSION}" \
+  -e SXWM_GIT_URL="${SXWM_GIT_URL}" \
+  -e SXWM_COMMIT="${SXWM_COMMIT}" \
+  -e SXBAR_GIT_URL="${SXBAR_GIT_URL}" \
+  -e SXBAR_COMMIT="${SXBAR_COMMIT}" \
+  -e SVKBD_GIT_URL="${SVKBD_GIT_URL}" \
+  -e SVKBD_COMMIT="${SVKBD_COMMIT}" \
   -v "${DOCKER_BUILD_VOLUME}:/build" \
   -v "${REPO_ROOT}:/workspace" \
   "${BUILD_CONTAINER_IMAGE}" \
@@ -354,12 +360,16 @@ GADGET_EOF
     chmod 0755 "${ROOTFS}/usr/local/sbin/setup-usb-gadget.sh"
 
     # Prepare chroot mounts
+    mkdir -p "${ROOTFS}/workspace"
     mount -t proc proc "${ROOTFS}/proc"
     mount -t sysfs sys "${ROOTFS}/sys"
     mount --bind /dev "${ROOTFS}/dev"
     mount --bind /dev/pts "${ROOTFS}/dev/pts"
+    mount --bind /workspace "${ROOTFS}/workspace"
 
     cleanup_mounts() {
+      umount -lf "${ROOTFS}/workspace" 2>/dev/null || true
+      rm -rf "${ROOTFS}/workspace" 2>/dev/null || true
       umount -lf "${ROOTFS}/dev/pts" 2>/dev/null || true
       umount -lf "${ROOTFS}/dev" 2>/dev/null || true
       umount -lf "${ROOTFS}/sys" 2>/dev/null || true
@@ -374,6 +384,7 @@ GADGET_EOF
       export PATH=/usr/bin:/usr/sbin:/bin:/sbin
 
       echo \"[CHROOT] Updating apk indices and upgrading installed packages...\"
+      apk add --no-interactive chimera-repo-user chimera-repo-contrib >/dev/null 2>&1 || true
       apk update
       apk upgrade --no-interactive
 
@@ -397,10 +408,49 @@ GADGET_EOF
         xz \
         nano \
         tmux \
-        htop
+        htop \
+        firmware-linux-brcm \
+        xserver-xorg-core \
+        xserver-xorg-input-libinput \
+        xinit \
+        xrandr \
+        xsetroot \
+        dmenu \
+        rxvt-unicode \
+        font-terminus \
+        fonts-dejavu \
+        fonts-freefont-otf \
+        gmake \
+        clang \
+        pkgconf \
+        git \
+        libx11-devel \
+        libxinerama-devel \
+        libxcursor-devel \
+        libxft-devel \
+        fontconfig-devel \
+        freetype-devel \
+        libxtst-devel
 
-      echo \"[CHROOT] Generating module dependency map for ${KERNEL_RELEASE}...\"
-      depmod -a \"${KERNEL_RELEASE}\"
+      echo \"[CHROOT] Building and installing sxwm (Simple X Window Manager)...\"
+      rm -rf /tmp/src && mkdir -p /tmp/src
+      git clone --filter=blob:none \"${SXWM_GIT_URL}\" /tmp/src/sxwm
+      git -C /tmp/src/sxwm checkout \"${SXWM_COMMIT}\"
+      (cd /tmp/src/sxwm && gmake CC=clang && gmake install)
+
+      echo \"[CHROOT] Building and installing sxbar (sxwm companion status bar)...\"
+      git clone --filter=blob:none \"${SXBAR_GIT_URL}\" /tmp/src/sxbar
+      git -C /tmp/src/sxbar checkout \"${SXBAR_COMMIT}\"
+      (cd /tmp/src/sxbar && gmake CC=clang && gmake install)
+
+      echo \"[CHROOT] Building and installing svkbd (suckless virtual touch keyboard)...\"
+      git clone --filter=blob:none \"${SVKBD_GIT_URL}\" /tmp/src/svkbd
+      git -C /tmp/src/svkbd checkout \"${SVKBD_COMMIT}\"
+      (cd /tmp/src/svkbd && gmake CC=clang LAYOUT=mobile-simple && cp -f svkbd-mobile-simple /usr/local/bin/)
+
+      echo \"[CHROOT] Cleaning temporary build packages...\"
+      apk del gmake clang llvm musl-devel libx11-devel libxinerama-devel libxcursor-devel libxft-devel fontconfig-devel freetype-devel libxtst-devel pkgconf git
+      rm -rf /tmp/src
 
       echo \"[CHROOT] Configuring locale and timezone (UTC)...\"
       ln -sf /usr/share/zoneinfo/UTC /etc/localtime
@@ -419,6 +469,48 @@ permit persist :wheel
 DOAS_EOF
       chmod 0600 /etc/doas.conf
 
+      echo \"[CHROOT] Configuring X11, Tegra KMS & touchscreen calibration...\"
+      mkdir -p /etc/X11/xorg.conf.d
+      cp -f /workspace/configs/xorg-switch.conf /etc/X11/xorg.conf.d/20-switch-tegra.conf
+
+      cat > /etc/X11/Xwrapper.config <<'XWRAP_EOF'
+needs_root_rights = yes
+allowed_users = anybody
+XWRAP_EOF
+
+      echo \"[CHROOT] Configuring user environment and sxwm/sxbar session...\"
+      mkdir -p /home/chimera/.config/sxwm /home/chimera/.config/sxbar
+      cp -f /workspace/configs/sxwmrc /home/chimera/.config/sxwm/sxwmrc
+      cp -f /workspace/configs/sxwmrc /home/chimera/.config/sxwmrc
+      cp -f /workspace/configs/sxbarc /home/chimera/.config/sxbar/sxbarc
+      cp -f /workspace/configs/sxbarc /home/chimera/.config/sxbarc
+
+      cat > /home/chimera/.xinitrc <<'XINIT_EOF'
+#!/bin/sh
+# Chimera Linux Switch (Erista) X11 Startup
+export LIBGL_ALWAYS_SOFTWARE=1
+export GALLIUM_DRIVER=llvmpipe
+
+# Set standard cursor and background
+xsetroot -cursor_name left_ptr
+xsetroot -solid "#1a1b26"
+
+# Launch sxbar companion status bar
+sxbar &
+
+# Start sxwm tiling window manager
+exec sxwm
+XINIT_EOF
+      chmod 0755 /home/chimera/.xinitrc
+
+      cat > /usr/local/bin/start-desktop <<'LAUNCH_EOF'
+#!/bin/sh
+exec su - chimera -c "startx"
+LAUNCH_EOF
+      chmod 0755 /usr/local/bin/start-desktop
+
+      chown -R chimera:chimera /home/chimera
+
       echo \"[CHROOT] Configuring OpenSSH server for headless USB-Ethernet access...\"
       mkdir -p /etc/ssh/sshd_config.d
       cat > /etc/ssh/sshd_config.d/10-chimera-switch.conf <<SSH_EOF
@@ -430,7 +522,7 @@ UseDNS no
 SSH_EOF
       ssh-keygen -A
 
-      echo \"[CHROOT] Configuring dinit services (sshd + usb-gadget)...\"
+      echo \"[CHROOT] Configuring dinit services (sshd + usb-gadget + x11-desktop)...\"
       mkdir -p /etc/dinit.d /etc/dinit.d/boot.d
 
       # Determine dependency target used by Chimera dinit
@@ -447,9 +539,18 @@ depends-on = \${DEP_TARGET}
 restart = false
 DINIT_EOF
 
-      # Enable sshd and usb-gadget in dinit boot.d
+      cat > /etc/dinit.d/x11-desktop <<DINIT_EOF
+type = process
+command = /usr/bin/su - chimera -c "startx -- vt1"
+depends-on = \${DEP_TARGET}
+restart = true
+smooth-recovery = true
+DINIT_EOF
+
+      # Enable sshd, usb-gadget, and x11-desktop in dinit boot.d
       ln -sf /usr/lib/dinit.d/sshd /etc/dinit.d/boot.d/sshd
       ln -sf /etc/dinit.d/usb-gadget /etc/dinit.d/boot.d/usb-gadget
+      ln -sf /etc/dinit.d/x11-desktop /etc/dinit.d/boot.d/x11-desktop
 
       # Disable default dnsmasq system service if apk added one so it only runs on usb0 via setup-usb-gadget.sh
       rm -f /etc/dinit.d/boot.d/dnsmasq

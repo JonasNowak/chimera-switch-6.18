@@ -76,3 +76,11 @@ HOMEBREW_UBOOT_TOOLS_PIN="2026.10"
 DOCKER_BUILD_VOLUME="chimera-switch-build"
 APFS_VOLUME_NAME="ChimeraBuild"
 APFS_SPARSE_SIZE="25g"
+
+# --- Lightweight X11 Window Manager & Tools (sxwm / sxbar / svkbd) ------------
+SXWM_GIT_URL="https://github.com/uint23/sxwm.git"
+SXWM_COMMIT="f121814d4aaf084f634a0fc1438a69649582a461"
+SXBAR_GIT_URL="https://github.com/uint23/sxbar.git"
+SXBAR_COMMIT="f31ed041b725164706f6e0ec5c8fb99469f3325c"
+SVKBD_GIT_URL="https://git.suckless.org/svkbd"
+SVKBD_COMMIT="faed34dbcf349fb1446ad2c40741105a37e5fb25"

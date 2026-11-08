@@ -237,9 +237,22 @@ if [[ "${LATEST_LLVM_PIN}" != "${PINNED_LLVM_PIN}" ]] || \
   TOOLCHAIN_CHANGED="true"
 fi
 
-# --- 6. Evaluate Merge Policy -------------------------------------------------
+# --- 6. Probe Desktop Stack (sxwm & sxbar) ------------------------------------
+LATEST_SXWM_COMMIT="$(git ls-remote "${SXWM_GIT_URL}" "HEAD" 2>/dev/null | awk '{print $1}' | head -n 1 || true)"
+[[ -z "${LATEST_SXWM_COMMIT}" ]] && LATEST_SXWM_COMMIT="${SXWM_COMMIT}"
+
+LATEST_SXBAR_COMMIT="$(git ls-remote "${SXBAR_GIT_URL}" "HEAD" 2>/dev/null | awk '{print $1}' | head -n 1 || true)"
+[[ -z "${LATEST_SXBAR_COMMIT}" ]] && LATEST_SXBAR_COMMIT="${SXBAR_COMMIT}"
+
+SXWM_CHANGED="false"
+[[ "${LATEST_SXWM_COMMIT}" != "${SXWM_COMMIT}" ]] && SXWM_CHANGED="true"
+
+SXBAR_CHANGED="false"
+[[ "${LATEST_SXBAR_COMMIT}" != "${SXBAR_COMMIT}" ]] && SXBAR_CHANGED="true"
+
+# --- 7. Evaluate Merge Policy -------------------------------------------------
 # Per Phase 8 rules:
-# - Routine rebuilds (new Chimera image set, toolchain bumps, clean patch rebase)
+# - Routine rebuilds (new Chimera image set, toolchain bumps, clean patch rebase, desktop updates)
 #   can auto-merge once CI passes.
 # - Any change that touches kernel config, DTB, or boot chain (or new Enigma
 #   major revision r21+) is labeled needs-review and waits for a human.
@@ -248,7 +261,9 @@ if [[ "${LINUX_NX_CHANGED}" == "true" ]] || \
    [[ "${ENIGMA_CHANGED}" == "true" ]] || \
    [[ "${CHIMERA_CHANGED}" == "true" ]] || \
    [[ "${L4S_CHANGED}" == "true" ]] || \
-   [[ "${TOOLCHAIN_CHANGED}" == "true" ]]; then
+   [[ "${TOOLCHAIN_CHANGED}" == "true" ]] || \
+   [[ "${SXWM_CHANGED}" == "true" ]] || \
+   [[ "${SXBAR_CHANGED}" == "true" ]]; then
   HAS_UPDATES="true"
 fi
 
@@ -291,6 +306,8 @@ if [[ -n "${WRITE_VERSIONS_FILE}" ]]; then
   gsed -i "s|^HOMEBREW_LLVM_PIN=.*|HOMEBREW_LLVM_PIN=\"${LATEST_LLVM_PIN}\"|" "${WRITE_VERSIONS_FILE}.tmp"
   gsed -i "s|^HOMEBREW_DTC_PIN=.*|HOMEBREW_DTC_PIN=\"${LATEST_DTC_PIN}\"|" "${WRITE_VERSIONS_FILE}.tmp"
   gsed -i "s|^HOMEBREW_UBOOT_TOOLS_PIN=.*|HOMEBREW_UBOOT_TOOLS_PIN=\"${LATEST_UBOOT_PIN}\"|" "${WRITE_VERSIONS_FILE}.tmp"
+  gsed -i "s|^SXWM_COMMIT=.*|SXWM_COMMIT=\"${LATEST_SXWM_COMMIT}\"|" "${WRITE_VERSIONS_FILE}.tmp"
+  gsed -i "s|^SXBAR_COMMIT=.*|SXBAR_COMMIT=\"${LATEST_SXBAR_COMMIT}\"|" "${WRITE_VERSIONS_FILE}.tmp"
   mv "${WRITE_VERSIONS_FILE}.tmp" "${WRITE_VERSIONS_FILE}"
 fi
 
@@ -332,6 +349,16 @@ JSON_REPORT="$(cat <<EOF
       "changed": ${L4S_CHANGED},
       "pinned_commit": "${L4S_PIPELINE_COMMIT}",
       "latest_commit": "${LATEST_L4S_COMMIT}"
+    },
+    "desktop_sxwm": {
+      "changed": ${SXWM_CHANGED},
+      "pinned_commit": "${SXWM_COMMIT}",
+      "latest_commit": "${LATEST_SXWM_COMMIT}"
+    },
+    "desktop_sxbar": {
+      "changed": ${SXBAR_CHANGED},
+      "pinned_commit": "${SXBAR_COMMIT}",
+      "latest_commit": "${LATEST_SXBAR_COMMIT}"
     },
     "toolchain": {
       "changed": ${TOOLCHAIN_CHANGED},

@@ -1,0 +1,56 @@
+# ~/.config/sxbar/sxbarc — sxbar configuration for Nintendo Switch
+# Layout: Top bar on 1280x720 landscape display
+
+bar_position        : top
+height              : 26
+vertical_padding    : 0
+horizontal_padding  : 0
+text_padding        : 8
+border              : false
+border_width        : 0
+background_colour   : #1a1b26
+foreground_colour   : #c0caf5
+border_colour       : #3b4261
+font                : monospace
+font_size           : 13
+
+# Workspaces
+workspaces.labels              : 1 2 3 4 5
+workspaces.active_background   : #7aa2f7
+workspaces.active_foreground   : #15161e
+workspaces.inactive_background : #24283b
+workspaces.inactive_foreground : #a9b1d6
+workspaces.padding_left        : 12
+workspaces.padding_right       : 12
+workspaces.spacing             : 4
+workspaces.position            : left
+
+# Module 0: Switch Battery
+module.0.name       : battery
+module.0.cmd        : cap=$(cat /sys/class/power_supply/*/capacity 2>/dev/null | head -n1); stat=$(cat /sys/class/power_supply/*/status 2>/dev/null | head -n1); if [ -n "$cap" ]; then echo "🔋 ${cap}% ($stat)"; else echo "🔋 N/A"; fi
+module.0.enabled    : true
+module.0.interval   : 10
+
+# Module 1: CPU Temperature
+module.1.name       : temp
+module.1.cmd        : t=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null | head -n1); if [ -n "$t" ]; then echo "🌡️ $((t / 1000))°C"; else echo ""; fi
+module.1.enabled    : true
+module.1.interval   : 5
+
+# Module 2: Memory Usage
+module.2.name       : mem
+module.2.cmd        : free -m | awk '/^Mem:/ {printf "RAM: %dM/%dM", $3, $2}'
+module.2.enabled    : true
+module.2.interval   : 3
+
+# Module 3: USB Gadget Network IP (usb0)
+module.3.name       : net
+module.3.cmd        : ip -4 addr show usb0 2>/dev/null | awk '/inet / {print "usb0: " $2}' | cut -d/ -f1
+module.3.enabled    : true
+module.3.interval   : 5
+
+# Module 4: Date & Time
+module.4.name       : clock
+module.4.cmd        : date '+%a %b %d  %H:%M'
+module.4.enabled    : true
+module.4.interval   : 30

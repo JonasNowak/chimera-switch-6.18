@@ -1,0 +1,66 @@
+# ~/.config/sxwmrc — sxwm configuration for Nintendo Switch (1280x720)
+
+# Colour Theme (Tokyo Night dark)
+focused_border_colour    : #7aa2f7
+unfocused_border_colour  : #24283b
+pinned_border_colour     : #e0af68
+
+# General Options
+gaps                    : 6
+border_width            : 2
+master_width            : 55
+resize_master_amount    : 2
+move_window_amount      : 40
+resize_window_amount    : 40
+snap_distance           : 6
+motion_throttle         : 60
+new_win_focus           : true
+warp_cursor             : false
+floating_on_top         : true
+new_win_master          : false
+
+# Mod Key (Super / Windows key)
+mod_key : super
+
+# Application Launchers
+bind : mod + Return       : "urxvt"
+bind : mod + p            : "dmenu_run -fn 'monospace:size=13' -nb '#1a1b26' -nf '#c0caf5' -sb '#7aa2f7' -sf '#15161e'"
+bind : mod + k            : "sh -c 'killall svkbd-mobile-simple 2>/dev/null || svkbd-mobile-simple -d &'"
+bind : mod + b            : "sh -c 'urxvt -e htop'"
+
+# Window Management
+call : mod + shift + q    : close_window
+call : mod + c            : centre_window
+call : mod + shift + e    : quit
+
+# Focus & Movement
+call : mod + j            : focus_next
+call : mod + Tab          : focus_next
+call : mod + shift + j    : master_next
+call : mod + l            : master_increase
+call : mod + h            : master_decrease
+
+# Layouts & Fullscreen
+call : mod + space        : toggle_floating
+call : mod + shift + space: global_floating
+call : mod + f            : fullscreen
+call : mod + m            : toggle_monocle
+
+# Gaps
+call : mod + equal        : increase_gaps
+call : mod + minus        : decrease_gaps
+
+# Config Reload
+call : mod + r            : reload_config
+
+# Workspaces (1-5)
+workspace : mod + 1         : move 1
+workspace : mod + shift + 1 : swap 1
+workspace : mod + 2         : move 2
+workspace : mod + shift + 2 : swap 2
+workspace : mod + 3         : move 3
+workspace : mod + shift + 3 : swap 3
+workspace : mod + 4         : move 4
+workspace : mod + shift + 4 : swap 4
+workspace : mod + 5         : move 5
+workspace : mod + shift + 5 : swap 5

@@ -76,8 +76,13 @@ When cross-compiling the Linux 6.18 kernel natively on macOS (`make ARCH=arm64 L
 2. Inside the `linux/aarch64` container on `/build/chimera-rootfs`:
    - Extracts the base rootfs and installs `out/kernel/modules.tar.gz` with `--keep-directory-symlink` (preserving Chimera's UsrMerge `/lib -> usr/lib` layout).
    - Configures `/etc/hostname` (`chimera-switch`), `/etc/hosts`, and `/etc/fstab` (`LABEL=SWR-CHI` on `/`, `/dev/mmcblk0p1` on `/boot/switchroot`).
-   - Runs `apk update && apk upgrade` and installs headless/networking tooling (`openssh`, `openssh-dinit`, `iproute2`, `dnsmasq`, `opendoas`, `initramfs-tools`, `kmod`, `e2fsprogs`, `dosfstools`, `util-linux`, `usbutils`, `pciutils`, `tmux`, `htop`, `nano`).
-   - Installs `/usr/local/sbin/setup-usb-gadget.sh` and enables both `sshd` and `usb-gadget` in `/etc/dinit.d/boot.d/`.
+   - Runs `apk update && apk upgrade` and installs headless/networking tooling (`openssh`, `openssh-dinit`, `iproute2`, `dnsmasq`, `opendoas`, `initramfs-tools`, `kmod`, `e2fsprogs`, `dosfstools`, `util-linux`, `usbutils`, `pciutils`, `tmux`, `htop`, `nano`, `firmware-linux-brcm`).
+   - Installs Xorg graphical stack (`xserver-xorg-core`, `xserver-xorg-input-libinput`, `xinit`, `xrandr`, `xsetroot`, `dmenu`, `rxvt-unicode`, Terminus & DejaVu fonts).
+   - Compiles and installs [`uint23/sxwm`](https://github.com/uint23/sxwm) (Simple X Window Manager) and [`uint23/sxbar`](https://github.com/uint23/sxbar) (companion status bar) from git.
+   - Compiles and installs [`svkbd`](https://git.suckless.org/svkbd) (suckless virtual touch keyboard) for on-screen typing on the Switch display.
+   - Configures `/etc/X11/xorg.conf.d/20-switch-tegra.conf` (Tegra KMS modesetting, Glamor disabled to prevent Mesa crashes, 90° clockwise rotation for landscape 1280x720, and touch coordinate calibration matrix).
+   - Deploys `~chimera/.config/sxwm/sxwmrc` and `~chimera/.config/sxbar/sxbarc` (battery %, CPU temp, RAM, IP, clock), plus `~chimera/.xinitrc` (`LIBGL_ALWAYS_SOFTWARE=1` via `llvmpipe`).
+   - Installs `/usr/local/sbin/setup-usb-gadget.sh` and enables `sshd`, `usb-gadget`, and `x11-desktop` in `/etc/dinit.d/boot.d/`.
    - Creates user `chimera` (`wheel` group, password `chimera`, `doas` enabled) and sets root password `chimera`.
 3. Outputs `out/rootfs.tar.zst` and `out/rootfs.tar.zst.sha256`.
 

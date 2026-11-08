@@ -20,11 +20,14 @@ The primary milestone of this project is a **headless Linux 6.18 system reachabl
 | **microSD Storage (`sdhci-tegra` / `ext4`)** | Working | **Expected ✓** (built-in `CONFIG_MMC_SDHCI_TEGRA=y`, `CONFIG_EXT4_FS=y`) | Targets `mmcblk0p1` (FAT32) + `mmcblk0p2` (`LABEL=SWR-CHI` ext4) |
 | **USB-C Gadget Networking (`usb0` CDC-NCM / RNDIS)** | Working | **Expected ✓** (`tegra-xudc` + ConfigFS + `dnsmasq` DHCP on `10.42.0.2/24`) | Zero-driver CDC-NCM support on macOS, Linux, and Windows 11 |
 | **Headless SSH (`openssh` via `dinit`)** | Working | **Expected ✓** (`sshd` + `usb-gadget` enabled in `/etc/dinit.d/boot.d/`) | Default credentials: `chimera` / `chimera` (`root` / `chimera`) |
+| **X11 Desktop (`sxwm` + `sxbar`)** | ✗ Wayland crash upstream | **Included & Configured ✓** (modesetting KMS, llvmpipe CPU render, 90° landscape, touch calibrated) | Simple X Window Manager + companion bar (Battery %, RAM, CPU, IP, Clock) + `svkbd` on-screen touch keyboard |
+| **Touchscreen (`stm-ftm4` I2C)** | Working | **Expected ✓** (`CONFIG_TOUCHSCREEN_FTM4=y`, Xorg clockwise calibration matrix) | Multi-touch enabled in X11 and virtual keyboard |
+| **Internal Panel Backlight (`tegra-pwm-bl`)** | Working | **Expected ✓** (`CONFIG_BACKLIGHT_PWM=y`, `CONFIG_DRM_PANEL_NX_DSI=y`) | 720p internal DSI panel |
 | **Userland (`Chimera Linux aarch64`)** | N/A (Arch/SteamOS tested upstream) | **Expected ✓** (ARMv8.0 baseline without LSE atomics; `musl` + `dinit` + `chimerautils`) | Compatible with Cortex-A57 (no ARMv8.1 LSE instructions required) |
 | **UART-B Serial Console (Right Joy-Con Rail)** | Working | **Expected ✓** (dedicated Hekate entry with `uart_port=2`, 115200 8N1) | Early boot (`earlycon`) and kernel console logging |
-| **3D GPU Acceleration (GM20B Nouveau / Mesa)** | ✗ Blocked upstream | **✗ Blocked upstream (Out of Scope)** | Nouveau disabled (`# CONFIG_DRM_NOUVEAU is not set`) per Enigma R20 stability |
-| **PCIe Wi-Fi (Broadcom `brcmfmac` / Tegra PCIe)** | ✗ Blocked upstream (LTSSM timeout) | **✗ Blocked upstream (Out of Scope)** | Tracked upstream in Enigma R20/R21 (`enigma-r20-ltssm.patch`) |
-| **Audio / Dock / Wayland Desktop** | ✗ Out of scope | **✗ Out of scope** | Scope is strictly headless USB-SSH |
+| **3D GPU Acceleration (GM20B Nouveau / Mesa)** | ✗ Blocked upstream | **✗ Blocked upstream** | Nouveau 3D crashes in Mesa on 6.18; X11 runs cleanly via `llvmpipe` CPU rasterizer |
+| **PCIe Wi-Fi (Broadcom `brcmfmac` / Tegra PCIe)** | ✗ Blocked upstream (LTSSM timeout) | **Driver & Firmware Included (`firmware-linux-brcm`)** | Blocked if LTSSM link times out; internet available over USB-Ethernet |
+| **Audio / Dock** | ✗ Out of scope | **✗ Out of scope** | Scope is headless USB-SSH + handheld X11 desktop |
 
 ---
 
@@ -49,9 +52,13 @@ The primary milestone of this project is a **headless Linux 6.18 system reachabl
         │           - Mounts SD p2 (ext4, LABEL=SWR-CHI, /dev/mmcblk0p2) as /
         ▼
 [Chimera Linux Userland (dinit PID 1)]
-                    - Starts /etc/dinit.d/usb-gadget -> /usr/local/sbin/setup-usb-gadget.sh
-                      (ConfigFS CDC-NCM + ACM on tegra-xudc, 10.42.0.2/24 on usb0, dnsmasq DHCP)
-                    - Starts /usr/lib/dinit.d/sshd on port 22
+                    ├── Starts /etc/dinit.d/usb-gadget (CDC-NCM + ACM, 10.42.0.2/24 on usb0, dnsmasq DHCP)
+                    ├── Starts /usr/lib/dinit.d/sshd on port 22
+                    └── Starts /etc/dinit.d/x11-desktop on Switch LCD:
+                        ├── Xorg modesetting driver on /dev/dri/card0 (720x1280 rotated to 1280x720)
+                        ├── Touchscreen STM FTM4 calibrated to landscape coordinates
+                        ├── sxbar (status bar: battery %, RAM, CPU temp, usb0 IP, clock)
+                        └── sxwm (tiling window manager with dmenu & svkbd on-screen keyboard)
 ```
 
 ---

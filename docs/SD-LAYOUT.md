@@ -85,14 +85,20 @@ Reference: [Switchroot Boot Configuration Wiki](https://wiki.switchroot.org/) an
 │   ├── initramfs.img                   # Copy of Phase 3 initramfs.img
 │   └── switchroot/                     # Mount point for /dev/mmcblk0p1 (FAT32)
 ├── etc/
+│   ├── X11/
+│   │   ├── Xwrapper.config             # Allowed console/anybody user permissions for Xorg
+│   │   └── xorg.conf.d/
+│   │       └── 20-switch-tegra.conf    # Tegra KMS modesetting, Rotate right, AccelMethod none, Touch calibration
 │   ├── chimera-switch/
 │   │   ├── kernel-release              # "6.18.0-enigma-r20-erista+"
 │   │   └── version                     # "0.1.0-erista-alpha"
 │   ├── dinit.d/
 │   │   ├── usb-gadget                  # dinit service definition for ConfigFS USB networking
+│   │   ├── x11-desktop                 # dinit service starting sxwm desktop session on tty1
 │   │   └── boot.d/
 │   │       ├── sshd -> /usr/lib/dinit.d/sshd
-│   │       └── usb-gadget -> /etc/dinit.d/usb-gadget
+│   │       ├── usb-gadget -> /etc/dinit.d/usb-gadget
+│   │       └── x11-desktop -> /etc/dinit.d/x11-desktop
 │   ├── doas.conf                       # "permit persist :wheel"
 │   ├── fstab                           # Mounts LABEL=SWR-CHI on / and /dev/mmcblk0p1 on /boot/switchroot
 │   ├── hostname                        # "chimera-switch"
@@ -104,10 +110,33 @@ Reference: [Switchroot Boot Configuration Wiki](https://wiki.switchroot.org/) an
 │   └── ssh/
 │       └── sshd_config.d/
 │           └── 10-chimera-switch.conf  # Enables PasswordAuthentication & PermitRootLogin over USB-SSH
+├── home/
+│   └── chimera/
+│       ├── .config/
+│       │   ├── sxwm/sxwmrc             # sxwm dynamic tiling window manager config
+│       │   └── sxbar/sxbarc             # sxbar status bar config (battery %, RAM, CPU, IP, clock)
+│       └── .xinitrc                    # X11 session launcher (LIBGL_ALWAYS_SOFTWARE=1, sxbar, sxwm)
 └── usr/
+    ├── bin/
+    │   ├── Xorg                        # Xorg display server
+    │   ├── dmenu                       # Application launcher
+    │   └── urxvt                       # Lightweight terminal emulator
     ├── lib/
     │   ├── dinit.d/sshd                # Chimera OpenSSH dinit service
+    │   ├── firmware/brcm/              # Broadcom BCM4356 Wi-Fi firmware files
     │   └── modules/
+    │       └── 6.18.0-enigma-r20-erista+/
+    │           ├── kernel/             # 33 loadable .ko modules (dwc3.ko, g_ncm.ko, g_ether.ko, ...)
+    │           ├── modules.builtin     # 753 built-in modules (ext4, sdhci-tegra, tegra-xudc, ...)
+    │           └── modules.dep         # Generated via depmod -a 6.18.0-enigma-r20-erista+
+    └── local/
+        ├── bin/
+        │   ├── sxwm                    # Simple X Window Manager
+        │   ├── sxbar                   # Companion status bar
+        │   ├── svkbd-mobile-simple     # Suckless virtual touch keyboard
+        │   └── start-desktop           # One-command desktop launcher
+        └── sbin/
+            └── setup-usb-gadget.sh     # ConfigFS CDC-NCM/RNDIS + ACM gadget + dnsmasq DHCP on 10.42.0.2/24
     │       └── 6.18.0-enigma-r20-erista+/
     │           ├── kernel/             # 33 loadable .ko modules (dwc3.ko, g_ncm.ko, g_ether.ko, ...)
     │           ├── modules.builtin     # 753 built-in modules (ext4, sdhci-tegra, tegra-xudc, ...)

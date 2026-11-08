@@ -162,3 +162,53 @@ To power off cleanly from SSH:
 ```bash
 doas poweroff
 ```
+
+---
+
+## Step 5: Using the Handheld X11 Desktop (`sxwm` + `sxbar` + Touchscreen)
+
+When the Switch finishes booting, the internal 720p screen automatically lights up with the **`sxwm` dynamic tiling desktop** and **`sxbar` companion status bar**:
+
+### 5.1 Status Bar Modules (`sxbar`)
+The bar at the top displays live system telemetry:
+- **Workspaces `1`–`5`**: Active/inactive workspace indicators.
+- **🔋 Battery**: Switch fuel gauge percentage + charging status (`Charging` / `Discharging`).
+- **🌡️ CPU Temp**: Tegra210 SoC thermal zone reading (in °C).
+- **RAM**: Active memory usage vs total memory (e.g. `RAM: 142M/3950M`).
+- **`usb0` IP**: Displays `10.42.0.2` when USB networking is active.
+- **Clock**: Date and time.
+
+### 5.2 Keybindings & Touch Controls (`sxwm`)
+
+| Action | Keyboard Shortcut | Touch / Handheld Method |
+| :--- | :--- | :--- |
+| **Open Terminal** | `Super + Return` | Launches `urxvt` |
+| **Open App Launcher** | `Super + p` | Launches `dmenu` tuned for 720p font size |
+| **Toggle On-Screen Keyboard** | `Super + k` | Toggles **`svkbd`** (suckless virtual touch keyboard) at the bottom of the screen |
+| **Open Task Manager (`htop`)** | `Super + b` | Spawns `htop` in a terminal |
+| **Close Window** | `Super + Shift + q` | Closes active window |
+| **Toggle Floating / Tiling** | `Super + Space` | Switches between tiling and floating mode |
+| **Toggle Fullscreen** | `Super + f` | Toggles borderless fullscreen |
+| **Switch Workspace (1–5)** | `Super + [1-5]` | Moves to workspace 1–5 |
+| **Move Window to Workspace** | `Super + Shift + [1-5]` | Moves focused window to workspace 1–5 |
+
+### 5.3 On-Screen Virtual Keyboard (`svkbd`) for Touchscreen Typing
+When using the Switch in handheld mode without a physical keyboard attached:
+1. Tap the keyboard toggle shortcut or run `svkbd-mobile-simple -d &` from SSH.
+2. The virtual keyboard overlays the bottom of the 720p screen.
+3. Tap keys with your finger or stylus; key events are emitted directly to the focused X11 window.
+
+### 5.4 Sharing Internet from macOS to the Switch over USB
+To give your Switch full internet access (for `apk add`, `curl`, `git`) through your Mac's Wi-Fi connection:
+
+1. **On macOS**:
+   ```bash
+   sudo sysctl -w net.inet.ip.forwarding=1
+   echo "nat on en0 from 10.42.0.0/24 to any -> (en0)" | sudo pfctl -ef -
+   ```
+   *(Replace `en0` with your Mac's Wi-Fi interface if different)*
+2. **On the Switch (via SSH `ssh root@10.42.0.2` or in terminal):**
+   ```bash
+   ip route add default via 10.42.0.1 dev usb0
+   ```
+   Your Switch is now online!
