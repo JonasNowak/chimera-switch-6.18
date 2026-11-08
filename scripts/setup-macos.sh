@@ -91,7 +91,7 @@ done
 
 if [[ ${#MISSING_FORMULAE[@]} -gt 0 ]]; then
   log "Installing missing Homebrew packages: ${MISSING_FORMULAE[*]}"
-  yes | brew install "${MISSING_FORMULAE[@]}"
+  NONINTERACTIVE=1 brew install "${MISSING_FORMULAE[@]}" </dev/null
 else
   ok "All required Homebrew formulae already installed."
 fi

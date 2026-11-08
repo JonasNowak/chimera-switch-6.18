@@ -290,25 +290,45 @@ fi
 
 # --- 7. Optionally write updated VERSIONS (CI bot mode only) ------------------
 if [[ -n "${WRITE_VERSIONS_FILE}" ]]; then
-  cp "${VERSIONS_FILE}" "${WRITE_VERSIONS_FILE}.tmp"
-  gsed -i "s|^LINUX_NX_COMMIT=.*|LINUX_NX_COMMIT=\"${LATEST_LINUX_NX_COMMIT}\"|" "${WRITE_VERSIONS_FILE}.tmp"
-  gsed -i "s|^X1STEAMOS_COMMIT=.*|X1STEAMOS_COMMIT=\"${LATEST_X1STEAMOS_COMMIT}\"|" "${WRITE_VERSIONS_FILE}.tmp"
-  gsed -i "s|^ENIGMA_REVISION=.*|ENIGMA_REVISION=\"${LATEST_ENIGMA_REVISION}\"|" "${WRITE_VERSIONS_FILE}.tmp"
-  gsed -i "s|^ENIGMA_PATCH_1_SHA256=.*|ENIGMA_PATCH_1_SHA256=\"${LATEST_PATCH_1_SHA256}\"|" "${WRITE_VERSIONS_FILE}.tmp"
-  gsed -i "s|^ENIGMA_PATCH_2_SHA256=.*|ENIGMA_PATCH_2_SHA256=\"${LATEST_PATCH_2_SHA256}\"|" "${WRITE_VERSIONS_FILE}.tmp"
-  gsed -i "s|^CHIMERA_IMAGE_DATE=.*|CHIMERA_IMAGE_DATE=\"${LATEST_CHIMERA_DATE}\"|" "${WRITE_VERSIONS_FILE}.tmp"
-  gsed -i "s|^CHIMERA_ROOTFS_FILENAME=.*|CHIMERA_ROOTFS_FILENAME=\"${LATEST_CHIMERA_FILENAME}\"|" "${WRITE_VERSIONS_FILE}.tmp"
-  gsed -i "s|^CHIMERA_ROOTFS_URL=.*|CHIMERA_ROOTFS_URL=\"${LATEST_CHIMERA_URL}\"|" "${WRITE_VERSIONS_FILE}.tmp"
-  gsed -i "s|^CHIMERA_ROOTFS_SHA256=.*|CHIMERA_ROOTFS_SHA256=\"${LATEST_CHIMERA_SHA256}\"|" "${WRITE_VERSIONS_FILE}.tmp"
-  gsed -i "s|^L4S_PIPELINE_COMMIT=.*|L4S_PIPELINE_COMMIT=\"${LATEST_L4S_COMMIT}\"|" "${WRITE_VERSIONS_FILE}.tmp"
-  gsed -i "s|^L4S_BOOT_ASSETS_URL=.*|L4S_BOOT_ASSETS_URL=\"${LATEST_L4S_ASSETS_URL}\"|" "${WRITE_VERSIONS_FILE}.tmp"
-  gsed -i "s|^L4S_BOOT_ASSETS_SHA256=.*|L4S_BOOT_ASSETS_SHA256=\"${LATEST_L4S_ASSETS_SHA256}\"|" "${WRITE_VERSIONS_FILE}.tmp"
-  gsed -i "s|^HOMEBREW_LLVM_PIN=.*|HOMEBREW_LLVM_PIN=\"${LATEST_LLVM_PIN}\"|" "${WRITE_VERSIONS_FILE}.tmp"
-  gsed -i "s|^HOMEBREW_DTC_PIN=.*|HOMEBREW_DTC_PIN=\"${LATEST_DTC_PIN}\"|" "${WRITE_VERSIONS_FILE}.tmp"
-  gsed -i "s|^HOMEBREW_UBOOT_TOOLS_PIN=.*|HOMEBREW_UBOOT_TOOLS_PIN=\"${LATEST_UBOOT_PIN}\"|" "${WRITE_VERSIONS_FILE}.tmp"
-  gsed -i "s|^SXWM_COMMIT=.*|SXWM_COMMIT=\"${LATEST_SXWM_COMMIT}\"|" "${WRITE_VERSIONS_FILE}.tmp"
-  gsed -i "s|^SXBAR_COMMIT=.*|SXBAR_COMMIT=\"${LATEST_SXBAR_COMMIT}\"|" "${WRITE_VERSIONS_FILE}.tmp"
-  mv "${WRITE_VERSIONS_FILE}.tmp" "${WRITE_VERSIONS_FILE}"
+  python3 -c "
+import sys, re
+
+replacements = {
+    'LINUX_NX_COMMIT': sys.argv[1],
+    'X1STEAMOS_COMMIT': sys.argv[2],
+    'ENIGMA_REVISION': sys.argv[3],
+    'ENIGMA_PATCH_1_SHA256': sys.argv[4],
+    'ENIGMA_PATCH_2_SHA256': sys.argv[5],
+    'CHIMERA_IMAGE_DATE': sys.argv[6],
+    'CHIMERA_ROOTFS_FILENAME': sys.argv[7],
+    'CHIMERA_ROOTFS_URL': sys.argv[8],
+    'CHIMERA_ROOTFS_SHA256': sys.argv[9],
+    'L4S_PIPELINE_COMMIT': sys.argv[10],
+    'L4S_BOOT_ASSETS_URL': sys.argv[11],
+    'L4S_BOOT_ASSETS_SHA256': sys.argv[12],
+    'HOMEBREW_LLVM_PIN': sys.argv[13],
+    'HOMEBREW_DTC_PIN': sys.argv[14],
+    'HOMEBREW_UBOOT_TOOLS_PIN': sys.argv[15],
+    'SXWM_COMMIT': sys.argv[16],
+    'SXBAR_COMMIT': sys.argv[17],
+}
+
+with open(sys.argv[18], 'r') as f:
+    content = f.read()
+
+for var, val in replacements.items():
+    if val:
+        content = re.sub(rf'^{var}=\".*?\"', f'{var}=\"{val}\"', content, flags=re.MULTILINE)
+
+with open(sys.argv[19], 'w') as f:
+    f.write(content)
+" "${LATEST_LINUX_NX_COMMIT}" "${LATEST_X1STEAMOS_COMMIT}" "${LATEST_ENIGMA_REVISION}" \
+  "${LATEST_PATCH_1_SHA256}" "${LATEST_PATCH_2_SHA256}" "${LATEST_CHIMERA_DATE}" \
+  "${LATEST_CHIMERA_FILENAME}" "${LATEST_CHIMERA_URL}" "${LATEST_CHIMERA_SHA256}" \
+  "${LATEST_L4S_COMMIT}" "${LATEST_L4S_ASSETS_URL}" "${LATEST_L4S_ASSETS_SHA256}" \
+  "${LATEST_LLVM_PIN}" "${LATEST_DTC_PIN}" "${LATEST_UBOOT_PIN}" \
+  "${LATEST_SXWM_COMMIT}" "${LATEST_SXBAR_COMMIT}" \
+  "${VERSIONS_FILE}" "${WRITE_VERSIONS_FILE}"
 fi
 
 # --- 8. Format and emit JSON output -------------------------------------------
